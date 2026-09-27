@@ -1,0 +1,198 @@
+import { useState, useEffect } from 'react'
+import { NavLink } from 'react-router-dom'
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, X } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
+import { DEFAULT_DISPLAY_NAME, DEFAULT_LOGO } from '../../utils/branding'
+
+function SidebarItem({ item, depth = 0, collapsed, onNavClick }) {
+  const [open, setOpen] = useState(false)
+  const hasChildren = item.children?.length > 0
+
+  if (hasChildren) {
+    if (collapsed) {
+      return (
+        <div className="relative group">
+          <button
+            type="button"
+            className="sidebar-link justify-center py-3 w-full"
+          >
+            {item.icon && <item.icon size={18} className="flex-shrink-0 text-surface-500 group-hover:text-surface-100" />}
+          </button>
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 bg-surface-900 border border-surface-700 text-surface-100 text-xs px-2.5 py-1.5 rounded-md shadow-floating opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
+            {item.label}
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div>
+        <button
+          onClick={() => setOpen(o => !o)}
+          className={`sidebar-link w-full ${depth > 0 ? 'pl-8' : ''}`}
+        >
+          {item.icon && <item.icon size={16} className="flex-shrink-0" />}
+          <span className="flex-1 text-left truncate">{item.label}</span>
+          {open
+            ? <ChevronDown size={13} className="flex-shrink-0" />
+            : <ChevronRight size={13} className="flex-shrink-0" />
+          }
+        </button>
+        {open && (
+          <div className="ml-2 pl-3 border-l border-surface-800 mt-0.5 space-y-0.5">
+            {item.children.map(child => (
+              <SidebarItem key={child.to} item={child} depth={depth + 1} collapsed={collapsed} onNavClick={onNavClick} />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <NavLink
+      to={item.to}
+      onClick={onNavClick}
+      className={({ isActive }) =>
+        `sidebar-link ${depth > 0 ? 'pl-3' : ''} ${isActive ? 'active' : ''} ${
+          collapsed ? 'justify-center py-3' : ''
+        }`
+      }
+    >
+      {({ isActive }) => (
+        <div className="flex items-center gap-3 w-full justify-center group relative">
+          {item.icon && (
+            <item.icon
+              size={18}
+              className={`flex-shrink-0 ${
+                isActive ? 'text-primary-500' : 'text-surface-500 group-hover:text-surface-100'
+              }`}
+            />
+          )}
+          {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+          {collapsed && (
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 bg-surface-900 border border-surface-700 text-surface-100 text-xs px-2.5 py-1.5 rounded-md shadow-floating opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
+              {item.label}
+            </div>
+          )}
+        </div>
+      )}
+    </NavLink>
+  )
+}
+
+export default function Sidebar({ navItems, role, mobileOpen = false, onMobileClose }) {
+  const { user } = useAuth()
+  const { branding } = useTheme()
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', collapsed)
+    window.dispatchEvent(new Event('resize'))
+  }, [collapsed])
+
+  // Close mobile sidebar on route change is handled by parent via mobileOpen prop
+  const roleLabels = { admin: 'Super Admin', org: 'Organization Admin', user: 'User' }
+  const roleColors = {
+    admin: 'text-danger-600',
+    org:   'text-info-600',
+    user:  'text-primary-500'
+  }
+
+  const platformName = branding?.name || DEFAULT_DISPLAY_NAME
+  const logoUrl = branding?.logoUrl || DEFAULT_LOGO
+  const showLogo = branding?.showLogoInSidebar !== false
+
+  return (
+    <aside
+      className={`
+        border-r flex flex-col h-screen select-none transition-all duration-250 z-40
+        fixed inset-y-0 left-0 md:sticky md:top-0 md:flex-shrink-0
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        ${collapsed ? 'w-64 md:w-16' : 'w-64'}
+        bg-surface-950 border-surface-800
+      `}
+    >
+      {/* Logo Area */}
+      <div className="flex items-center gap-3 px-4 py-4 border-b min-h-[57px] border-surface-800">
+        {showLogo && (
+          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden p-0.5 shadow-sm">
+            <img src={logoUrl} alt={platformName} className="w-full h-full object-contain rounded-md" />
+          </div>
+        )}
+        {!collapsed && (
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold leading-none tracking-wide truncate text-surface-100">
+              {platformName}
+            </p>
+          </div>
+        )}
+        {/* Close button — mobile only */}
+        <button
+          type="button"
+          onClick={onMobileClose}
+          className="md:hidden p-1 transition-colors text-surface-500 hover:text-surface-200"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Navigation Links */}
+      <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-0.5">
+        {navItems.map((item, idx) =>
+          item.divider ? (
+            !collapsed ? (
+              <div key={item.label ?? idx} className="pt-5 pb-1 px-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-surface-500">
+                  {item.label}
+                </p>
+              </div>
+            ) : (
+              <div key={idx} className="border-t border-surface-800/60 my-4" />
+            )
+          ) : (
+            <SidebarItem key={item.to ?? item.label ?? idx} item={item} collapsed={collapsed} onNavClick={onMobileClose} />
+          )
+        )}
+      </nav>
+
+      {/* User Profile Strip & Collapse Toggle */}
+      <div className="border-t border-surface-800 bg-surface-950/50 flex flex-col">
+        {/* User Card */}
+        <div className={`flex items-center gap-3 p-4 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-full bg-primary-500/15 border border-primary-500/30 flex items-center justify-center flex-shrink-0 text-primary-500 font-bold text-sm">
+            {user?.name?.[0] ?? 'U'}
+          </div>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-surface-200 truncate leading-tight">
+                {user?.name ?? 'Guest User'}
+              </p>
+              {user?.organization?.name && (
+                <p className="text-[10px] font-semibold text-info-400 truncate leading-tight mt-0.5">
+                  {user.organization.name}
+                </p>
+              )}
+              <p className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${roleColors[role]}`}>
+                {roleLabels[role]}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Collapse Button — desktop only */}
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => !c)}
+          className="hidden md:flex border-t border-surface-800 py-3 text-surface-500 hover:text-surface-200 items-center justify-center transition-colors duration-150"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+        </button>
+      </div>
+    </aside>
+  )
+}

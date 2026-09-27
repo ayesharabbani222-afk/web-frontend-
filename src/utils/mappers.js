@@ -1,0 +1,618 @@
+/** Map API entities to UI table/card shapes used across pages */
+import { apiRoleToLabel } from './roles'
+import { themeDisplayName, DEFAULT_PRIMARY_COLOR } from './branding'
+
+const fmtDate = (d) => {
+  if (!d) return '—'
+  const s = typeof d === 'string' ? d : d.toISOString?.() ?? String(d)
+  return s.length > 16 ? s.slice(0, 16).replace('T', ' ') : s
+}
+
+/** Match backend DEVICE_OFFLINE_AFTER_MS (default 5 min). */
+const DEVICE_OFFLINE_AFTER_MS = 5 * 60_000
+
+const statusLabel = (s) => {
+  if (!s) return '—'
+  const m = {
+    ONLINE: 'Online',
+    OFFLINE: 'Offline',
+    UPGRADING: 'Upgrading',
+    IN_CONFIGURATION: 'In the configuration',
+    GATEWAY_ALARM: 'Gateway alarm',
+    DISABLED: 'Disabled',
+    ACTIVE: 'Active',
+    INACTIVE: 'Inactive',
+    ON: 'On',
+    OFF: 'Off',
+  }
+  return m[s] ?? s.charAt(0) + s.slice(1).toLowerCase()
+}
+
+/** Prefer API status, but treat stale / never-seen devices as Offline in the UI. */
+const resolveDeviceStatus = (d) => {
+  const raw = String(d?.status || '').toUpperCase()
+  if (raw === 'OFFLINE') return { status: 'Offline', statusRaw: 'OFFLINE' }
+  if (raw && raw !== 'ONLINE') return { status: statusLabel(raw), statusRaw: raw }
+
+  const last = d?.lastDataReceivedAt
+  if (!last) return { status: 'Offline', statusRaw: 'OFFLINE' }
+  const age = Date.now() - new Date(last).getTime()
+  if (!Number.isFinite(age) || age >= DEVICE_OFFLINE_AFTER_MS) {
+    return { status: 'Offline', statusRaw: 'OFFLINE' }
+  }
+  return { status: 'Online', statusRaw: 'ONLINE' }
+}
+
+/** Same stale rules as devices, using gateway lastSeenAt; keep manual statuses. */
+const resolveGatewayStatus = (g) => {
+  const raw = String(g?.status || '').toUpperCase()
+  if (raw === 'OFFLINE') return { status: 'Offline', statusRaw: 'OFFLINE' }
+  if (raw && raw !== 'ONLINE') return { status: statusLabel(raw), statusRaw: raw }
+
+  const last = g?.lastSeenAt
+  if (!last) return { status: 'Offline', statusRaw: 'OFFLINE' }
+  const age = Date.now() - new Date(last).getTime()
+  if (!Number.isFinite(age) || age >= DEVICE_OFFLINE_AFTER_MS) {
+    return { status: 'Offline', statusRaw: 'OFFLINE' }
+  }
+  return { status: 'Online', statusRaw: 'ONLINE' }
+}
+
+export const mapOrganization = (o) => ({
+  id: o.id,
+  name: o.name,
+  description: o.description ?? '',
+  status: statusLabel(o.status),
+  statusRaw: o.status,
+  theme: o.theme?.name ? themeDisplayName(o.theme.name) : '—',
+  themeId: o.themeId,
+  logoUrl: o.logoUrl,
+  createdAt: fmtDate(o.createdAt),
+  _raw: o,
+})
+
+export const mapUser = (u, orgName) => ({
+  id: u.id,
+  name: u.fullName,
+  email: u.email,
+  phone: u.phone ?? '—',
+  org: orgName ?? u.organization?.name ?? '—',
+  organizationId: u.organizationId,
+  role: apiRoleToLabel(u.role),
+  roleRaw: u.role,
+  status: statusLabel(u.status),
+  statusRaw: u.status,
+  createdAt: fmtDate(u.createdAt),
+  _raw: u,
+})
+
+export const mapGateway = (g) => {
+  const { status, statusRaw } = resolveGatewayStatus(g)
+  return {
+    id: g.id,
+    name: g.name,
+    serial: g.serialNumber,
+    model: g.model ?? '—',
+    org: g.organization?.name ?? '—',
+    organizationId: g.organizationId,
+    devices: g._count?.devices ?? 0,
+    status,
+    statusRaw,
+    lastSeen: fmtDate(g.lastSeenAt),
+    lastSeenRaw: g.lastSeenAt,
+    createdAt: fmtDate(g.createdAt),
+    _raw: g,
+  }
+}
+
+export const mapDevice = (d) => {
+  const { status, statusRaw } = resolveDeviceStatus(d)
+  return {
+    id: d.id,
+    name: d.name,
+    org: d.organization?.name ?? '—',
+    organizationId: d.organizationId,
+    gateway: d.gateway?.name ?? '—',
+    gatewayId: d.gatewayId,
+    template: d.template?.name ?? '—',
+    templateId: d.templateId,
+    status,
+    statusRaw,
+    switchOn: d.switchState === 'ON',
+    switchState: d.switchState,
+    lastSeen: fmtDate(d.lastDataReceivedAt),
+    lastSeenRaw: d.lastDataReceivedAt,
+    createdAt: fmtDate(d.createdAt),
+    createdAtRaw: d.createdAt,
+    updatedAt: fmtDate(d.updatedAt),
+    updatedAtRaw: d.updatedAt,
+    latestMetrics: d.latestMetrics,
+    _raw: d,
+  }
+}
+
+export const mapDeviceTemplate = (t) => ({
+  id: t.id,
+  name: t.name,
+  org: t.organization?.name ?? '—',
+  organizationId: t.organizationId,
+  method: t.acquisitionMethod ?? '—',
+  description: t.description ?? '',
+  slaves: t._count?.slaves ?? t.totalSlaves ?? 0,
+  variables: t.totalVariables ?? 0,
+  devices: t._count?.devices ?? 0,
+  createdAt: fmtDate(t.createdAt),
+  updatedAt: fmtDate(t.updatedAt),
+  _raw: t,
+})
+
+export const mapProduct = (p) => ({
+  id: p.id,
+  name: p.name,
+  category: p.category ?? '—',
+  price: p.price != null ? `$${p.price}` : '—',
+  status: p.isActive === false || p.status === 'INACTIVE' ? 'Inactive' : 'Active',
+  description: p.description ?? '',
+  imageUrl: p.imageUrl ?? null,
+  _raw: p,
+})
+
+export const mapIcon = (i) => ({
+  id: i.id,
+  name: i.name,
+  category: i.category ?? 'General',
+  url: i.url ?? i.imageUrl,
+  active: i.status !== 'INACTIVE',
+  _raw: i,
+})
+
+export const mapNotification = (n) => ({
+  id: n.id,
+  title: n.triggerName ?? 'Notification',
+  device: n.deviceName ?? '—',
+  message: n.description ?? '',
+  read: n.read,
+  severity: n.read ? 'info' : 'warning',
+  time: fmtDate(n.createdAt),
+  _raw: n,
+})
+
+const repeatToUi = (r) => ({ DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', ONCE: 'One Time' }[r] ?? r)
+
+export const mapScheduledTask = (t) => ({
+  id: t.id,
+  serial: t.serial ?? null,
+  name: t.variableName,
+  org: t.organization?.name ?? '—',
+  organizationId: t.organizationId,
+  device: t.device?.name ?? t.deviceId ?? '—',
+  deviceId: t.deviceId,
+  slaveId: t.deviceConfigSlaveId ?? null,
+  variableId: t.deviceConfigVariableId ?? null,
+  variable: t.variableName,
+  taskType: t.action === 'ON' ? 'Turn On' : 'Turn Off',
+  frequency: repeatToUi(t.repeatType),
+  time: t.scheduledTime,
+  schedule: `${repeatToUi(t.repeatType)} ${t.scheduledTime}`,
+  recipients: '—',
+  action: t.action,
+  repeat: repeatToUi(t.repeatType),
+  status: statusLabel(t.status),
+  statusRaw: t.status,
+  createdBy: t.creator?.fullName ?? t.createdByName ?? '—',
+  lastRun: fmtDate(t.nextRunAt),
+  nextRun: fmtDate(t.nextRunAt),
+  _raw: t,
+})
+
+export const mapSlabRate = (s) => {
+  const slave = s.configSlave ?? s.deviceConfigSlave
+  const device = slave?.device
+  const isTimeBased = s.onPeakRate != null || s.offPeakRate != null
+  return {
+    id: s.id,
+    location: device?.name ?? '—',
+    locationId: device?.id ?? slave?.deviceId ?? null,
+    deviceId: device?.id ?? slave?.deviceId ?? null,
+    slave: slave?.name ?? s.deviceConfigSlaveId ?? '—',
+    slaveId: s.deviceConfigSlaveId,
+    slaveName: slave?.name ?? s.deviceConfigSlaveId ?? '—',
+    variable: s.variableName ?? '—',
+    variableName: s.variableName ?? 'Power Consumption',
+    from: s.unitFrom,
+    to: s.unitTo,
+    totalUnit: s.unitTo ?? s.unitFrom ?? 0,
+    tariff: s.rate != null ? `PKR ${s.rate}/unit` : '—',
+    startDate: fmtDate(s.createdAt)?.slice(0, 10) ?? '—',
+    endDate: fmtDate(s.updatedAt)?.slice(0, 10) ?? '—',
+    rate: s.rate,
+    onPeakRate: s.onPeakRate,
+    offPeakRate: s.offPeakRate,
+    rateType: isTimeBased ? 'time_based' : 'default',
+    rateTypeLabel: isTimeBased ? 'Time-Based' : 'Default Rate',
+    unitFrom: s.unitFrom,
+    unitTo: s.unitTo,
+    _raw: s,
+  }
+}
+
+export const mapIntervalHistory = (h) => {
+  const slave = h.configSlave ?? h.deviceConfigSlave
+  const device = h.device ?? slave?.device
+  const deviceId = h.deviceId ?? device?.id ?? slave?.deviceId ?? null
+  return {
+    id: h.id,
+    variable: h.variableName,
+    variableName: h.variableName,
+    location: device?.name ?? '—',
+    deviceId,
+    slave: slave?.name ?? h.slaveName ?? '—',
+    slaveName: slave?.name ?? h.slaveName ?? '—',
+    slaveId: h.deviceConfigSlaveId ?? slave?.id ?? null,
+    unit: h.totalUnit != null ? String(h.totalUnit) : '—',
+    totalUnit: h.totalUnit != null ? String(h.totalUnit) : '—',
+    tariff: h.tariff != null ? String(h.tariff) : '—',
+    from: fmtDate(h.startDate),
+    to: fmtDate(h.endDate),
+    startDate: fmtDate(h.startDate),
+    endDate: fmtDate(h.endDate),
+    startDateTime: h.startDate ?? null,
+    endDateTime: h.endDate ?? null,
+    computedAt: fmtDate(h.computedAt),
+    _raw: h,
+  }
+}
+
+export const mapAnomaly = (a) => ({
+  id: a.id,
+  device: a.device?.name ?? a.deviceId,
+  deviceId: a.deviceId,
+  variable: a.variableName,
+  trigger: a.triggerName ?? '—',
+  type: a.triggerName ?? a.triggerType ?? 'Anomaly',
+  desc: a.triggeringCondition ?? '—',
+  severity: a.alarmState === 'ACTIVE' ? 'High' : 'Medium',
+  status: a.alarmState === 'ACTIVE' ? 'Active' : 'Resolved',
+  value: a.currentValue,
+  condition: a.triggeringCondition,
+  state: a.alarmState,
+  process: a.processState,
+  time: fmtDate(a.alarmTime),
+  _raw: a,
+})
+
+export const mapNotificationRow = (n) => ({
+  id: n.id,
+  triggerName: n.triggerName ?? 'Notification',
+  deviceName: n.deviceName ?? '—',
+  description: n.description ?? '',
+  time: fmtDate(n.createdAt),
+  read: n.read,
+  severity: n.read ? 'info' : 'warning',
+  _raw: n,
+})
+
+export const mapSubscriptionUi = (s, orgName) => ({
+  id: s.id,
+  plan: s.name,
+  org: orgName ?? s.organization?.name ?? '—',
+  startDate: fmtDate(s.submittedAt)?.slice(0, 10) ?? '—',
+  endDate: '—',
+  status: s.status === 'CLOSED' ? 'Expired' : s.status === 'CONTACTED' ? 'Active' : 'Pending',
+  devices: '—',
+  amount: s.amount != null ? String(s.amount) : (s.description || '—'),
+  email: s.email,
+  phone: s.phone ?? '—',
+  description: s.description ?? '',
+  _raw: s,
+})
+
+const operatorToUi = (op) => {
+  const m = {
+    GT: 'Greater Than',
+    LT: 'Less Than',
+    EQ: 'Equal To',
+    GTE: 'Greater or Equal',
+    LTE: 'Less or Equal',
+    BETWEEN: 'Between A and B',
+    OUTSIDE: 'Outside A–B',
+  }
+  return m[op] ?? op ?? '—'
+}
+
+const conditionLabelFromTrigger = (t) => {
+  const type = t.anomalyType
+  if (type === 'OFF') return 'OFF'
+  if (type === 'ON') return 'ON'
+  if (type === 'LT_A' || t.operator === 'LT') return 'Value is less than A'
+  if (type === 'GT_B' || t.operator === 'GT') return 'Value is more than B'
+  if (type === 'BETWEEN_AB' || t.operator === 'BETWEEN') return 'Value is more than A and less than B'
+  if (type === 'OUTSIDE_AB' || t.operator === 'OUTSIDE') return 'Value is more than B or less than A'
+  if (type === 'EQ_A' || t.operator === 'EQ') return 'Value is equal to A'
+  return operatorToUi(t.operator)
+}
+
+export const mapAlarmTemplate = (t) => {
+  const setting = Array.isArray(t.alarmSettings) ? t.alarmSettings[0] : null
+  const contact = setting?.configContacts?.[0]?.alarmContact ?? null
+  const pushRaw = setting?.pushingMechanism || ''
+  const silenceMatch = /^SILENCE:(\d+)$/i.exec(pushRaw)
+  return {
+    id: t.id,
+    name: t.name,
+    org: t.organization?.name ?? '—',
+    organizationId: t.organizationId,
+    template: t.deviceTemplate?.name ?? '—',
+    templateName: t.deviceTemplate?.name ?? '—',
+    deviceTemplateId: t.deviceTemplateId,
+    variable: t.watchedVariable?.displayName || t.watchedVariable?.name || '—',
+    templateVariableId: t.templateVariableId,
+    templateSlaveId: t.watchedVariable?.templateSlaveId ?? '',
+    operator: t.operator,
+    condition: conditionLabelFromTrigger(t),
+    threshold: t.threshold != null ? String(t.threshold) : '—',
+    thresholdB: t.thresholdB != null ? String(t.thresholdB) : '',
+    anomalyType: t.anomalyType,
+    type: t.anomalyType,
+    priority: t.priority,
+    linkageAction: t.linkageAction ?? '',
+    linkageEnabled: !!(t.linkageAction && t.linkageAction !== 'DISABLED'),
+    methods: [],
+    message: '',
+    founder: t.creator?.fullName ?? '—',
+    triggerCondition: conditionLabelFromTrigger(t),
+    updatedAt: fmtDate(t.updatedAt),
+    status: t.isActive === false ? 'Inactive' : 'Active',
+    active: t.isActive,
+    method: 'Email',
+    contactId: contact?.id ?? '',
+    contactName: contact?.name ?? '',
+    contactPhone: contact?.mobile ?? '',
+    contactEmail: contact?.email ?? '',
+    alarmSettingId: setting?.id ?? '',
+    pushMechanism: silenceMatch ? 'silence' : 'first_time',
+    silenceSeconds: silenceMatch ? silenceMatch[1] : '',
+    alarmEnabled: setting ? setting.status !== 'INACTIVE' : t.isActive !== false,
+    _raw: t,
+  }
+}
+
+export const mapAlarmSetting = (s) => ({
+  id: s.id,
+  name: s.name ?? s.pushType,
+  org: s.organization?.name ?? '—',
+  organizationId: s.organizationId,
+  templateTriggerId: s.templateTriggerId,
+  pushType: s.pushType ?? 'Template Trigger',
+  pushBody: s.pushBody ?? '',
+  pushMethod: s.pushMethod ?? 'Email',
+  mechanism: s.pushingMechanism === 'DELAYED' ? 'Delayed' : 'Instant',
+  delay: s.pushDelay ?? '',
+  status: statusLabel(s.status),
+  statusRaw: s.status,
+  founder: s.creator?.fullName ?? s.createdByName ?? '—',
+  updatedAt: fmtDate(s.updatedAt),
+  devices: s.configDevices?.length ?? s._count?.devices ?? 0,
+  _raw: s,
+})
+
+export const mapAlarmContact = (c, orgName) => ({
+  id: c.id,
+  name: c.name ?? c.email ?? c.mobile,
+  org: orgName ?? c.organization?.name ?? '—',
+  organizationId: c.organizationId,
+  email: c.email ?? '—',
+  phone: c.mobile ?? c.phone ?? '—',
+  whatsapp: c.whatsapp ?? '—',
+  remark: c.remark ?? '',
+  addPeople: c.addPeople ?? c.creator?.fullName ?? c.createdByName ?? '—',
+  updatedAt: fmtDate(c.updatedAt),
+  type: c.contactType ?? 'email',
+  _raw: c,
+})
+
+export const mapVariableAlarm = (a, deviceName) => ({
+  id: a.id,
+  device: deviceName ?? a.device?.name ?? a.deviceName ?? a.deviceId,
+  deviceName: deviceName ?? a.device?.name ?? a.deviceName ?? a.deviceId,
+  deviceId: a.deviceId,
+  variable: a.variableName,
+  variableName: a.variableName,
+  type: a.triggerType ?? a.triggerName ?? '—',
+  slave: a.slaveName ?? '—',
+  slaveName: a.slaveName ?? '—',
+  threshold: a.triggeringCondition ?? '—',
+  actual: a.currentValue != null ? String(a.currentValue) : '—',
+  time: fmtDate(a.alarmTime),
+  status: a.alarmState === 'RESOLVED' ? 'Resolved' : 'Active',
+  triggerName: a.triggerName,
+  currentValue: a.currentValue,
+  operator: a.triggeringCondition?.split(' ')[1] ?? '',
+  alarmState: a.alarmState,
+  processState: a.processState,
+  alarmTime: a.alarmTime,
+  _raw: a,
+})
+
+export const mapLinkageRecord = (r, deviceName) => {
+  const watchedName = r.watchedVariableName ?? r.trigger?.watchedVariable?.name
+  const conditionFromTrigger = r.trigger
+    ? `${watchedName || ''} ${r.trigger.operator || ''} ${r.trigger.threshold ?? ''}`.trim()
+    : ''
+  return {
+    id: r.id,
+    name: r.triggerName ?? r.trigger?.name ?? '—',
+    srcDevice: deviceName ?? r.device?.name ?? r.deviceName ?? r.deviceId,
+    deviceName: deviceName ?? r.device?.name ?? r.deviceName ?? r.deviceId,
+    deviceId: r.deviceId,
+    srcVar: watchedName ?? '—',
+    triggerType: r.triggerType ?? r.trigger?.anomalyType ?? r.actionTaken ?? '—',
+    slave: r.slaveName ?? '—',
+    slaveName: r.slaveName ?? '—',
+    variable: watchedName ?? '—',
+    condition: r.triggeringCondition
+      || conditionFromTrigger
+      || (r.watchedVariableValue != null ? String(r.watchedVariableValue) : '—'),
+    threshold: r.watchedVariableValue != null ? String(r.watchedVariableValue) : '—',
+    tgtDevice: r.triggerDeviceName ?? r.linkedDeviceName ?? r.device?.name ?? r.linkedVariableName ?? '—',
+    triggerDevice: r.triggerDeviceName ?? r.linkedDeviceName ?? r.device?.name ?? r.linkedVariableName ?? '—',
+    triggerName: r.triggerName ?? r.trigger?.name,
+    watchedVariableName: watchedName,
+    currentValue: r.watchedVariableValue,
+    linkedVariableName: r.linkedVariableName ?? r.trigger?.linkageVariable?.name,
+    action: r.actionTaken === 'ON' ? 'Turn On' : r.actionTaken === 'OFF' ? 'Turn Off' : (r.actionTaken ?? '—'),
+    status: 'Active',
+    createdAt: fmtDate(r.firedAt),
+    _raw: r,
+  }
+}
+
+export const mapAlarmHistoryNotification = (n) => ({
+  id: n.id,
+  device: n.device,
+  message: n.message,
+  pushType: n.pushType,
+  sentTo: n.sentTo,
+  status: n.status,
+  sentAt: n.sentAt,
+  _raw: n,
+})
+
+export const mapDeviceTimestamp = (t, orgName) => {
+  const online = t.onlineStatus === 'ONLINE' || t.device?.status === 'ONLINE'
+  const mins = t.lastActiveMinsAgo ?? 0
+  const uptimePct = online ? Math.max(0, 100 - Math.min(mins, 100)) : Math.max(0, 100 - Math.min(mins * 2, 100))
+  const relative = (() => {
+    if (mins < 60) return `${mins} min(s) ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours} hour(s) ago`
+    return `${Math.floor(hours / 24)} day(s) ago`
+  })()
+  return {
+    id: t.id,
+    device: t.device?.name ?? t.deviceId,
+    deviceId: t.deviceId,
+    org: orgName ?? '—',
+    lastDate: fmtDate(t.lastActiveAt),
+    lastOnline: fmtDate(t.lastActiveAt),
+    lastData: fmtDate(t.lastActiveAt),
+    lastActive: relative,
+    uptime: `${uptimePct.toFixed(1)}%`,
+    downtime: `${(100 - uptimePct).toFixed(1)}%`,
+    status: online ? 'Online' : 'Offline',
+    _raw: t,
+  }
+}
+
+export const mapTheme = (t) => ({
+  id: t.id,
+  name: t.name,
+  displayName: themeDisplayName(t.name),
+  primary: t.headerBgColor ?? t.primaryColor ?? DEFAULT_PRIMARY_COLOR,
+  secondary: t.bodyBgColor ?? t.secondaryColor ?? '#0ea5e9',
+  headerFontColor: t.headerFontColor,
+  headerBgColor: t.headerBgColor,
+  bodyFontColor: t.bodyFontColor,
+  bodyBgColor: t.bodyBgColor,
+  fontSize: t.fontSize,
+  logoUrl: t.logoUrl ?? null,
+  sidebarColor: t.sidebarColor ?? 'Dark',
+  fontFamily: t.fontFamily ?? t.fontSize ?? 'Inter',
+  darkModeDefault: t.darkModeDefault !== false,
+  showLogoInSidebar: t.showLogoInSidebar !== false,
+  assignedOrgs: t.organizations ?? [],
+  status: statusLabel(t.status),
+  statusRaw: t.status,
+  isDefault: t.status === 'ACTIVE',
+  _raw: t,
+})
+
+export const mapSetting = (s) => {
+  const typeRaw = s.type || 'Text'
+  const type = ({
+    logo: 'Logo', image: 'Logo', Logo: 'Logo',
+    text: 'Text', string: 'Text', Text: 'Text',
+    number: 'Number', Number: 'Number',
+    color: 'Color', Color: 'Color',
+  }[typeRaw] ?? typeRaw)
+  const isLogo = type === 'Logo' || /^https?:\/\//i.test(s.value || '') || /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(s.value || '')
+  return {
+    id: s.id ?? s.key,
+    key: s.key,
+    type,
+    value: s.value ?? '',
+    preview: isLogo ? (s.value || null) : null,
+    description: s.description ?? '',
+    updatedAt: fmtDate(s.updatedAt),
+    _raw: s,
+  }
+}
+
+export const mapSubscription = (s) => ({
+  id: s.id,
+  name: s.name,
+  email: s.email,
+  phone: s.phone ?? '—',
+  status: s.status,
+  submittedAt: fmtDate(s.submittedAt),
+  description: s.description ?? '',
+  _raw: s,
+})
+
+/** Chart helpers */
+export const bucketToChart = (points, valueKey = 'value', timeKey = 'timestamp') =>
+  (points ?? []).map((p) => ({
+    time: fmtDate(p[timeKey]).slice(11, 16) || fmtDate(p[timeKey]),
+    [valueKey]: p[valueKey] ?? p.value,
+    ...p,
+  }))
+
+export const dashboardChartSeries = (summary, key) =>
+  (summary?.[key]?.chartData ?? []).map((p) => ({
+    time: fmtDate(p.timestamp).slice(11, 16) || fmtDate(p.timestamp),
+    value: p.value,
+  }))
+
+export const aiPointsToChart = (points, key = 'value') =>
+  (points ?? []).map((p) => ({
+    time: new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    [key]: p.value,
+    value: p.value,
+  }))
+
+export const mergeVoltageChart = (chartData) => {
+  const len = chartData?.voltageA?.length ?? 0
+  return Array.from({ length: len }, (_, i) => ({
+    time: new Date(chartData.voltageA[i].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    voltageA: chartData.voltageA[i]?.value,
+    voltageB: chartData.voltageB?.[i]?.value,
+    voltageC: chartData.voltageC?.[i]?.value,
+  }))
+}
+
+export const mergeCurrentChart = (chartData) => {
+  const len = Math.max(
+    chartData?.currentA?.length ?? 0,
+    chartData?.currentB?.length ?? 0,
+    chartData?.currentC?.length ?? 0,
+  )
+  const src = chartData?.currentA?.length ? chartData.currentA
+    : chartData?.currentB?.length ? chartData.currentB
+      : chartData?.currentC
+  return Array.from({ length: len }, (_, i) => ({
+    time: src?.[i]?.timestamp
+      ? new Date(src[i].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : String(i),
+    currentA: chartData.currentA?.[i]?.value,
+    currentB: chartData.currentB?.[i]?.value,
+    currentC: chartData.currentC?.[i]?.value,
+  }))
+}
+
+export const VAR_API_NAMES = {
+  voltageA: 'VoltageA',
+  voltageB: 'VoltageB',
+  voltageC: 'VoltageC',
+  currentA: 'CurrentA',
+  power: 'PowerConsumption',
+}
