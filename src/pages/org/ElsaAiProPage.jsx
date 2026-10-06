@@ -387,41 +387,157 @@ export default function ElsaAiProPage() {
             </div>
           </div>
 
-          {/* 5. 24-Hour Energy Flow Area Chart (From Tab 6) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          {/* 5. Source Orchestration & Flow (From Screenshot media_1791268517701.png) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Source Orchestration — Cheapest Safe Source First
+              </h3>
+              <p className="text-xs text-slate-400">
+                The house is on solar right now, the car is charging from battery, and the generator is asleep.
+              </p>
+            </div>
+
+            {/* 4 Source Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {/* Solar */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Sun size={14} className="text-amber-500" /> Solar
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      Active
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">Rs 0/unit</p>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Generating — feeding home + battery</p>
+              </div>
+
+              {/* Battery */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Battery size={14} className="text-slate-400" /> Battery
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">Rs 9/unit</p>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">SoC: 74%</p>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Stored cost Rs 9/unit — reserve floor 30%</p>
+              </div>
+
+              {/* WAPDA / Grid */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Zap size={14} className="text-blue-500" /> WAPDA / Grid
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">Rs 25.2/unit</p>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Off-peak now — current slab rate</p>
+              </div>
+
+              {/* Generator */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Flame size={14} className="text-slate-400" /> Generator
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">Rs 78/unit</p>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Standby — auto-starts only on an outage with battery below its floor</p>
+              </div>
+            </div>
+
+            {/* Solar Generation vs Consumption Chart */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 space-y-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  24-Hour Source Flow (Solar Generation vs Home Demand)
-                </h3>
-                <p className="text-xs text-slate-400">Solar rooftop displacement curve against total consumption</p>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Solar Generation vs Consumption</h4>
+                <p className="text-[11px] text-slate-400">Selling cheap during the day, buying expensive at night — leak/export zone shaded.</p>
               </div>
-              <div className="flex items-center gap-4 text-xs font-semibold">
-                <span className="flex items-center gap-1.5 text-amber-600">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Solar (2.8 kW Peak)
+
+              <div className="h-48 w-full bg-slate-50/50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-800 relative">
+                <div className="absolute left-2 top-3 bottom-8 flex flex-col justify-between text-[10px] text-slate-400 font-mono">
+                  <span>6 kW</span>
+                  <span>4 kW</span>
+                  <span>2 kW</span>
+                  <span>0 kW</span>
+                </div>
+
+                <div className="ml-10 h-full relative pb-6">
+                  <svg className="w-full h-full" viewBox="0 0 800 130" preserveAspectRatio="none">
+                    <line x1="0" y1="10" x2="800" y2="10" stroke="#cbd5e1" strokeDasharray="3" opacity="0.5" />
+                    <line x1="0" y1="45" x2="800" y2="45" stroke="#cbd5e1" strokeDasharray="3" opacity="0.5" />
+                    <line x1="0" y1="80" x2="800" y2="80" stroke="#cbd5e1" strokeDasharray="3" opacity="0.5" />
+                    <line x1="0" y1="115" x2="800" y2="115" stroke="#cbd5e1" opacity="0.8" />
+
+                    {/* Solar Generation (Orange Area) */}
+                    <path
+                      d="M 180,115 C 240,115 320,10 400,10 C 480,10 560,115 620,115 Z"
+                      fill="rgba(245, 158, 11, 0.25)"
+                    />
+                    <path
+                      d="M 180,115 C 240,115 320,10 400,10 C 480,10 560,115 620,115"
+                      stroke="#f59e0b"
+                      strokeWidth="2.5"
+                      fill="none"
+                    />
+
+                    {/* House Consumption (Blue Area) */}
+                    <path
+                      d="M 0,80 L 160,80 C 220,80 280,88 360,88 C 440,88 520,85 580,85 C 640,85 680,50 720,50 C 760,50 780,75 800,85 L 800,115 L 0,115 Z"
+                      fill="rgba(59, 130, 246, 0.12)"
+                    />
+                    <path
+                      d="M 0,80 L 160,80 C 220,80 280,88 360,88 C 440,88 520,85 580,85 C 640,85 680,50 720,50 C 760,50 780,75 800,85"
+                      stroke="#3b82f6"
+                      strokeWidth="2"
+                      fill="none"
+                    />
+                  </svg>
+                </div>
+
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono ml-10 -mt-5 px-1">
+                  <span>0:00</span>
+                  <span>4:00</span>
+                  <span>8:00</span>
+                  <span>12:00</span>
+                  <span>16:00</span>
+                  <span>20:00</span>
+                </div>
+              </div>
+
+              {/* Legend Centered */}
+              <div className="flex items-center justify-center gap-6 text-xs pt-1">
+                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <span className="w-3 h-0.5 bg-amber-500 inline-block relative"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 absolute -top-0.5 left-1/2 -translate-x-1/2"></span></span>
+                  <span>Solar Generation</span>
                 </span>
-                <span className="flex items-center gap-1.5 text-blue-600">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Home Demand (4.1 kW Peak)
+                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <span className="w-3 h-0.5 bg-blue-500 inline-block relative"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 absolute -top-0.5 left-1/2 -translate-x-1/2"></span></span>
+                  <span>House Consumption</span>
                 </span>
               </div>
             </div>
-            <div className="h-44 w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-3 border border-slate-200 dark:border-slate-800 relative">
-              <svg className="w-full h-full" viewBox="0 0 800 130" preserveAspectRatio="none">
-                <line x1="0" y1="35" x2="800" y2="35" stroke="#cbd5e1" strokeDasharray="3" opacity="0.6" />
-                <line x1="0" y1="70" x2="800" y2="70" stroke="#cbd5e1" strokeDasharray="3" opacity="0.6" />
-                <line x1="0" y1="105" x2="800" y2="105" stroke="#cbd5e1" strokeDasharray="3" opacity="0.6" />
-                <path d="M0,95 L120,90 L240,65 L360,40 L480,38 L600,50 L720,80 L800,100 L800,130 L0,130 Z" fill="rgba(59, 130, 246, 0.12)" />
-                <path d="M0,95 L120,90 L240,65 L360,40 L480,38 L600,50 L720,80 L800,100" stroke="#3b82f6" strokeWidth="2.5" fill="none" />
-                <path d="M0,130 L220,130 L320,85 L400,20 L480,80 L580,130 L800,130 Z" fill="rgba(245, 158, 11, 0.2)" />
-                <path d="M0,130 L220,130 L320,85 L400,20 L480,80 L580,130 L800,130" stroke="#f59e0b" strokeWidth="2.5" fill="none" />
-              </svg>
-            </div>
-            <div className="flex justify-between text-[11px] text-slate-400 mt-2 px-1 font-mono">
-              <span>00:00</span>
-              <span>06:00 (Sunrise)</span>
-              <span className="text-amber-600 font-bold">12:00 (Solar Peak 2.8 kW)</span>
-              <span>18:00 (Sunset)</span>
-              <span>23:00</span>
+
+            {/* Dispatch Rules Card */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 space-y-2">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white">Dispatch Rules</h4>
+              <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                <li>• Cheapest-first: every load is served from the lowest live-cost source</li>
+                <li>• Solar surplus waterfall: loads → battery → EV → export</li>
+                <li>• Battery reserve floor protected — economy ke liye kabhi dispatch nahi hoti</li>
+                <li>• Peak defense: battery covers the base load, EV charging is blocked during peak</li>
+                <li>• Generator never charges the EV — Rs 78 diesel unit into a car is a loss</li>
+              </ul>
             </div>
           </div>
 
@@ -885,26 +1001,6 @@ export default function ElsaAiProPage() {
           </div>
         </div>
       )}
-
-      {/* ========================================================================= */}
-      {/* FLOATING ACTION ICON TRIGGER (Bottom Right)                               */}
-      {/* ========================================================================= */}
-      <div className="fixed bottom-6 right-6 z-40">
-        <button
-          onClick={() => setIsCopilotOpen(true)}
-          className="flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-xl shadow-amber-500/30 border border-amber-400/40 transition-all transform hover:scale-105 active:scale-95 group"
-          title="Open Hey ELSA Conversational Copilot"
-        >
-          <div className="relative">
-            <Bot size={18} />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-950 animate-pulse"></span>
-          </div>
-          <span className="tracking-wide">Hey ELSA AI</span>
-          <span className="bg-slate-950/20 text-slate-950 px-2 py-0.5 rounded-full text-[10px]">
-            Online
-          </span>
-        </button>
-      </div>
 
       {/* ========================================================================= */}
       {/* HEY ELSA SLIDE-OVER COPILOT DRAWER (Condenses Tab 7 into a Modern Drawer) */}
