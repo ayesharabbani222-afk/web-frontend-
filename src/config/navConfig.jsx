@@ -7,7 +7,7 @@ import {
   BellRing, BrainCircuit, Gauge, TrendingUp, AlertOctagon,
   ListTree, UserCog, LayoutGrid, Radio, LayoutTemplate, ShieldCheck, Boxes,
   PlugZap, BarChart3, BatteryCharging, Recycle, Bot, Car, UserCircle, SlidersHorizontal,
-  List,
+  List, Sparkles,
 } from 'lucide-react'
 
 // ─── Active navigation (aligned with improved CF dashboard) ──────────────────
@@ -47,6 +47,14 @@ export const orgNav = [
   { divider: true, label: 'Main' },
   { to: '/org',                    label: 'Dashboard',       icon: LayoutDashboard },
   { to: '/org/custom-dashboard',   label: 'Custom Dashboards', icon: LayoutTemplate },
+  {
+    label: 'ELSA AI Intelligence',
+    icon: Sparkles,
+    children: [
+      { to: '/org/elsa-ai',        label: 'ELSA 2.0 (Executive 3-Views)', icon: Sparkles },
+      { to: '/org/elsa-classic',   label: 'ELSA Classic (7 Tabs)',       icon: Bot },
+    ],
+  },
   { divider: true, label: 'Devices' },
   { to: '/org/devices',            label: 'My Devices',      icon: Cpu },
   { to: '/org/access-groups',      label: 'Access Groups',   icon: ShieldCheck },

@@ -87,6 +87,10 @@ import EvFleet                from './pages/org/ev-chargers/EvFleet'
 import EvProfile              from './pages/org/ev-chargers/EvProfile'
 import EvControl              from './pages/org/ev-chargers/EvControl'
 
+// ELSA AI Versions
+import ElsaAiClassicPage      from './pages/org/ElsaAiClassicPage'
+import ElsaAiProPage          from './pages/org/ElsaAiProPage'
+
 function ProtectedRoute({ children, requiredRole }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
@@ -160,6 +164,8 @@ function AppRoutes() {
         <Route index                    element={<OrgDashboard />} />
         <Route path="custom-dashboard"  element={<DashboardList />} />
         <Route path="custom-dashboard/:id" element={<DashboardEditor />} />
+        <Route path="elsa-ai"           element={<ElsaAiProPage />} />
+        <Route path="elsa-classic"      element={<ElsaAiClassicPage />} />
         <Route path="devices"           element={<OrgDevices />} />
         <Route path="devices/:deviceId" element={<DeviceDetailPage basePath="/org" />} />
         <Route path="access-groups"     element={<OrgAccessGroups />} />
