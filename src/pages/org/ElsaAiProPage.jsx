@@ -1,436 +1,645 @@
 import React, { useState } from 'react'
 import {
-  Zap, DollarSign, Activity, Bell, Calendar, GitFork, MessageSquare,
-  Sun, AlertTriangle, ArrowRight, ShieldCheck, Gauge, CheckCircle2,
-  TrendingDown, TrendingUp, Sliders, Play, Plus, Clock, BatteryCharging,
-  Sparkles, X, ChevronRight, BarChart3, Filter, Send
+  Zap, DollarSign, Activity, MessageSquare, Sun, CheckCircle2,
+  AlertTriangle, ArrowRight, ShieldCheck, TrendingDown, Clock,
+  Plus, Bell, Play, Sparkles, Filter, RefreshCw
 } from 'lucide-react'
 import {
   REAL_METERS, PLANT_TOTALS, TARIFF_CONFIG, DEFAULT_TRIGGERS,
-  formatRs, calculateCurrentImbalance, calculateLowPfPenalty
+  formatRs
 } from '../../utils/elsaEngine'
 
 export default function ElsaAiProPage() {
-  const [activeWorkspace, setActiveWorkspace] = useState('command') // 'command' | 'financial' | 'health'
-  const [isCopilotOpen, setIsCopilotOpen] = useState(false)
+  // Simple 4 Tabs: Exactly the familiar original names, but consolidated to eliminate clutter!
+  const [activeTab, setActiveTab] = useState('overview')
+
+  // Triggers state for Bill & Tariff tab
   const [triggers, setTriggers] = useState(DEFAULT_TRIGGERS)
+  const [whenDevice, setWhenDevice] = useState('Spray Booth Daily Spend')
+  const [comparator, setComparator] = useState('>')
+  const [thresholdRs, setThresholdRs] = useState('25000')
+  const [actionThen, setActionThen] = useState('WhatsApp & Email Alert')
+
+  // Auto Schedule toggle
+  const [autoScheduleActive, setAutoScheduleActive] = useState(true)
+
+  // Selected machine for Load Health detail modal/card
+  const [selectedLoad, setSelectedLoad] = useState(REAL_METERS[1]) // Spray Booth default
+
+  // Hey ELSA Chat state
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState([
     {
       sender: 'elsa',
-      text: 'Salam! Main ELSA hoon, Ambition plant ki AI Energy Engineer. Solar AFL, Spray Booth, aur Ground Floor ka live telemetry data active hai. Aap English ya Roman Urdu mein kuch bhi pooch saktay hain.',
+      text: 'Salam! Main ELSA hoon, Ambition plant ki AI Energy Engineer. Solar AFL (11.5 kW), Spray Booth (78.8 kW), aur Ground Floor feeder ka live telemetry data active hai. Aap bill, power factor, ya machine status ke baray mein pooch saktay hain.',
       time: '10:00 AM'
     }
   ])
 
-  const workspaces = [
-    {
-      id: 'command',
-      label: 'Plant Command & Flow',
-      desc: 'Live Pipeline, MDI Dials & Solar Generation Flow',
-      icon: Zap,
-      badge: 'Live 125 kW'
-    },
-    {
-      id: 'financial',
-      label: 'Financials & Triggers',
-      desc: 'Tariff Slabs, Low-PF Penalties & Rupee Rules',
-      icon: DollarSign,
-      badge: 'Save Rs 112k'
-    },
-    {
-      id: 'health',
-      label: 'Load Health & Optimizer',
-      desc: 'Fleet Health Diagnostics & Solar Load Shifting',
-      icon: Activity,
-      badge: '1 Alert'
-    },
+  // Simple, familiar tab definitions
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: Zap, subtitle: 'Live Pipeline, Energy Gauges & Source Flow' },
+    { id: 'tariff', label: 'Bill & Tariff', icon: DollarSign, subtitle: 'Utility Slabs, Low-PF Penalty & Rupee Triggers' },
+    { id: 'health', label: 'Load Health', icon: Activity, subtitle: 'Machine Health Grades & Solar Schedule' },
+    { id: 'assistant', label: 'Hey ELSA', icon: MessageSquare, subtitle: 'Conversational Energy Assistant' },
   ]
+
+  const handleAddTrigger = (e) => {
+    e?.preventDefault()
+    const newTrig = {
+      id: `trig-${Date.now()}`,
+      name: `${whenDevice} ${comparator} Rs ${thresholdRs}`,
+      targetDevice: whenDevice,
+      metric: 'rupee_cost',
+      condition: comparator,
+      threshold: Number(thresholdRs) || 0,
+      channel: actionThen,
+      cooldownMinutes: 15,
+      status: 'active',
+      lastTriggered: 'Just created — armed',
+    }
+    setTriggers([newTrig, ...triggers])
+  }
 
   const handleSendChat = (e) => {
     e?.preventDefault()
     if (!chatInput.trim()) return
     const userText = chatInput.trim()
-    const newMsgs = [...chatMessages, { sender: 'user', text: userText, time: 'Just now' }]
-    setChatMessages(newMsgs)
+    setChatMessages((prev) => [...prev, { sender: 'user', text: userText, time: 'Just now' }])
     setChatInput('')
 
     setTimeout(() => {
       const q = userText.toLowerCase()
-      let reply = "Monitoring Ambition facility. Inquire about equipment health, solar displacement, or bill projections."
+      let reply = "I am monitoring Ambition facility. Ask about live power, power factor, or today's bill."
       if (q.includes('spray') || q.includes('booth')) {
-        reply = `Spray Booth 78.8 kW draw kar raha hai with 0.49 PF (Grade C). Iski wajah se NEPRA low-PF penalty lagti hai. 85 kVAR Capacitor bank lagane se Rs 112,500/month ki bachat hogi.`
+        reply = "Spray Booth abhi 78.8 kW draw kar raha hai with 0.49 PF (Grade C). Iski wajah se NEPRA low-PF penalty lagti hai. 85 kVAR Capacitor bank lagane se Rs 112,500/month ki bachat hogi."
       } else if (q.includes('solar') || q.includes('bijli')) {
-        reply = `Solar AFL is generating 11.5 kW right now at 50.1 Hz. It has offset Rs 4,140 in electricity costs today.`
+        reply = "Solar AFL is currently generating 11.5 kW at 50.1 Hz frequency. Isne aaj Rs 4,140 ki utility grid electricity bacha li hai."
       } else if (q.includes('bill') || q.includes('cost') || q.includes('kharcha')) {
         reply = `Today's spend is estimated at ${formatRs(PLANT_TOTALS.todaySpendRs)}. Projected month bill is ${formatRs(PLANT_TOTALS.monthProjectedRs)} under ${TARIFF_CONFIG.discoName}.`
       } else if (q.includes('ground') || q.includes('imbalance')) {
-        reply = `Ground Floor feeder par 65.8% current unbalance hai (Phase B 16.8A vs Phase C 4.6A). Neutral wire overheating se bachne ke liye Phase C par loads balance karna zaroori hai.`
+        reply = "Ground Floor feeder par 65.8% current unbalance hai (Phase B 16.8A vs Phase C 4.6A). Neutral wire overheating se bachne ke liye Phase C par loads shift karna zaroori hai."
       }
       setChatMessages((prev) => [...prev, { sender: 'elsa', text: reply, time: 'Just now' }])
-    }, 600)
-  }
-
-  const handleQuickPrompt = (prompt) => {
-    setChatInput(prompt)
+    }, 500)
   }
 
   return (
-    <div className="space-y-6 p-4 max-w-7xl mx-auto relative">
-      {/* Executive Top Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-surface-200 dark:border-surface-800">
+    <div className="space-y-6 p-4 max-w-7xl mx-auto">
+      {/* Clean Top Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-surface-200 dark:border-surface-800">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded text-xs font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-              Version 2: Executive (Streamlined & Consolidated)
+            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
+              Clean 4-Page Layout
             </span>
-            <span className="text-xs text-surface-400">Zero Features Skipped · 3 Cohesive Workspaces</span>
+            <span className="text-xs text-surface-400">Zero Features Skipped · Simple & Familiar</span>
           </div>
-          <h1 className="text-2xl font-black text-surface-900 dark:text-surface-100 tracking-tight mt-1 flex items-center gap-2">
-            ELSA AI · Executive Energy Command
+          <h1 className="text-2xl font-black text-surface-900 dark:text-surface-100 tracking-tight mt-1">
+            ELSA AI · Facility Energy Intelligence
           </h1>
-          <p className="text-sm text-surface-500 dark:text-surface-400">
-            Ambition Facility · Unified Telemetry & Financial Intelligence
+          <p className="text-xs text-surface-500">
+            Ambition Facility · Live data from Solar AFL, Spray Booth, and Ground Floor
           </p>
         </div>
 
-        {/* Co-Pilot Persistent Drawer Trigger */}
-        <button
-          onClick={() => setIsCopilotOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md shadow-amber-500/20 transition-all transform hover:-translate-y-0.5"
-        >
-          <Sparkles size={16} />
-          <span>✨ Hey ELSA Co-Pilot</span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        </button>
+        {/* Live heartbeat */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-xs font-semibold text-surface-700 dark:text-surface-300 w-fit">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Feeders Online: 3 / 3</span>
+        </div>
       </div>
 
-      {/* 3 Executive Workspaces Navigation */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {workspaces.map((ws) => {
-          const Icon = ws.icon
-          const isActive = activeWorkspace === ws.id
+      {/* 4 Simple, Familiar Tabs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        {tabs.map((t) => {
+          const Icon = t.icon
+          const isActive = activeTab === t.id
           return (
             <button
-              key={ws.id}
-              onClick={() => setActiveWorkspace(ws.id)}
-              className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`p-3.5 rounded-xl border text-left transition-all ${
                 isActive
-                  ? 'border-primary-600 bg-primary-50/50 dark:bg-primary-950/20 shadow-sm'
-                  : 'border-surface-200 dark:border-surface-800 hover:border-surface-300 dark:hover:border-surface-700 bg-white dark:bg-surface-900'
+                  ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
+                  : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 border-surface-200 dark:border-surface-800 hover:border-surface-300 dark:hover:border-surface-700'
               }`}
             >
-              {isActive && (
-                <div className="absolute top-0 left-0 right-0 h-1 bg-primary-600" />
-              )}
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded-lg ${isActive ? 'bg-primary-600 text-white' : 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300'}`}>
-                    <Icon size={16} />
-                  </div>
-                  <span className={`text-sm font-bold ${isActive ? 'text-primary-700 dark:text-primary-300' : 'text-surface-800 dark:text-surface-200'}`}>
-                    {ws.label}
-                  </span>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-500">
-                  {ws.badge}
-                </span>
+              <div className="flex items-center gap-2 mb-1">
+                <Icon size={16} />
+                <span className="font-bold text-sm">{t.label}</span>
               </div>
-              <p className="text-xs text-surface-500 dark:text-surface-400 line-clamp-1">{ws.desc}</p>
+              <p className={`text-[11px] truncate ${isActive ? 'text-white/80' : 'text-surface-400'}`}>
+                {t.subtitle}
+              </p>
             </button>
           )
         })}
       </div>
 
       {/* ========================================================================= */}
-      {/* WORKSPACE 1: PLANT COMMAND & ENERGY FLOW (Overview + Source Flow)        */}
+      {/* TAB 1: OVERVIEW (Contains Original Overview + Original Source Flow)       */}
       {/* ========================================================================= */}
-      {activeWorkspace === 'command' && (
-        <div className="space-y-6">
-          {/* Live Ingestion Pipeline Flow */}
-          <div className="card p-5 rounded-2xl border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900/50">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-surface-400">Live Plant Energy Flow Pipeline</h3>
-              <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                All 3 Feeders Online & Streaming
+      {activeTab === 'overview' && (
+        <div className="space-y-5">
+          {/* 1. Live Source Flow Pipeline */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Live Energy Pipeline</h3>
+            <div className="flex flex-wrap items-center gap-2.5 text-xs font-bold">
+              <span className="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+                <Sun size={14} /> Solar AFL (11.5 kW) · Live
+              </span>
+              <span className="text-surface-400">+</span>
+              <span className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800 flex items-center gap-1.5">
+                <Zap size={14} /> WAPDA Grid (113.5 kW) · Live
+              </span>
+              <span className="text-surface-400">→</span>
+              <span className="px-3 py-2 rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-black">
+                🏭 Factory Total: {PLANT_TOTALS.totalDemandKw} kW
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
-              <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300">
-                <p className="text-[11px] font-bold uppercase">1. Solar AFL (Rooftop)</p>
-                <p className="text-xl font-black mt-0.5">11.5 kW</p>
-                <p className="text-[10px] opacity-80">Rs 0/kWh · Priority 1 Inflow</p>
+          </div>
+
+          {/* 2. Top Spend & Saving KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Today (estimate)</p>
+              <p className="text-2xl font-black text-surface-900 dark:text-surface-100 mt-0.5">{formatRs(PLANT_TOTALS.todaySpendRs)}</p>
+            </div>
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Month Projected</p>
+              <p className="text-2xl font-black text-emerald-600 mt-0.5">{formatRs(PLANT_TOTALS.monthProjectedRs)}</p>
+            </div>
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Target Budget</p>
+              <p className="text-2xl font-black text-surface-900 dark:text-surface-100 mt-0.5">{formatRs(PLANT_TOTALS.monthlyBudgetRs)}</p>
+            </div>
+          </div>
+
+          {/* 3. What ELSA Saved You Today */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100 mb-2">What ELSA Saved You Today</h3>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                Solar AFL: {formatRs(PLANT_TOTALS.solarSavingsTodayRs)}
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                Total Saved: {formatRs(PLANT_TOTALS.solarSavingsTodayRs)}
+              </span>
+            </div>
+          </div>
+
+          {/* 4. Org Dials (MDI, PF, THD, Feeders) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">MDI Gauge</p>
+              <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-0.5">{PLANT_TOTALS.mdiKw} kW</p>
+              <p className="text-xs text-surface-400 mt-0.5">of 150 kW sanctioned</p>
+            </div>
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">PF Dial</p>
+              <p className="text-xl font-bold text-rose-600 mt-0.5">{PLANT_TOTALS.averagePf}</p>
+              <p className="text-xs text-rose-500 font-medium mt-0.5">Below 0.90 limit</p>
+            </div>
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">THD Strip</p>
+              <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-0.5">3.2%</p>
+              <p className="text-xs text-emerald-600 mt-0.5">Normal range</p>
+            </div>
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Feeders Online</p>
+              <p className="text-xl font-bold text-emerald-600 mt-0.5">3 / 3</p>
+              <p className="text-xs text-surface-400 mt-0.5">100% connected</p>
+            </div>
+          </div>
+
+          {/* 5. Source Flow: 24-Hour Solar Generation vs Factory Demand Chart */}
+          <div className="card p-5 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-surface-900 dark:text-surface-100">
+                  24-Hour Solar Generation vs Factory Demand (Source Flow)
+                </h3>
+                <p className="text-xs text-surface-400">Solar rooftop offset vs WAPDA utility grid import</p>
               </div>
-              <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-blue-700 dark:text-blue-300">
-                <p className="text-[11px] font-bold uppercase">2. WAPDA Utility Grid</p>
-                <p className="text-xl font-black mt-0.5">113.5 kW</p>
-                <p className="text-[10px] opacity-80">Rs 42/kWh · Priority 2 Inflow</p>
+              <div className="flex items-center gap-3 text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-amber-600">
+                  <span className="w-3 h-3 rounded-full bg-amber-500"></span> Solar AFL (11.5 kW)
+                </span>
+                <span className="flex items-center gap-1.5 text-blue-600">
+                  <span className="w-3 h-3 rounded-full bg-blue-500"></span> Factory Demand (125 kW)
+                </span>
               </div>
-              <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300">
-                <p className="text-[11px] font-bold uppercase">3. Total Plant Demand</p>
-                <p className="text-xl font-black mt-0.5">125.0 kW</p>
-                <p className="text-[10px] opacity-80">Solar Offsetting 9.2% of Factory</p>
+            </div>
+
+            {/* SVG Visual Curve */}
+            <div className="h-44 w-full bg-surface-50 dark:bg-surface-950 rounded-lg p-3 border border-surface-200 dark:border-surface-800 relative">
+              <svg className="w-full h-full" viewBox="0 0 800 130" preserveAspectRatio="none">
+                <line x1="0" y1="35" x2="800" y2="35" stroke="#e2e8f0" strokeDasharray="3" />
+                <line x1="0" y1="70" x2="800" y2="70" stroke="#e2e8f0" strokeDasharray="3" />
+                <line x1="0" y1="105" x2="800" y2="105" stroke="#e2e8f0" strokeDasharray="3" />
+                {/* Factory Demand Area */}
+                <path d="M0,95 L120,90 L240,65 L360,40 L480,38 L600,50 L720,80 L800,100 L800,130 L0,130 Z" fill="rgba(59, 130, 246, 0.12)" />
+                <path d="M0,95 L120,90 L240,65 L360,40 L480,38 L600,50 L720,80 L800,100" stroke="#3b82f6" strokeWidth="2.5" fill="none" />
+                {/* Solar Bell Curve */}
+                <path d="M0,130 L220,130 L320,85 L400,20 L480,80 L580,130 L800,130 Z" fill="rgba(245, 158, 11, 0.2)" />
+                <path d="M0,130 L220,130 L320,85 L400,20 L480,80 L580,130 L800,130" stroke="#f59e0b" strokeWidth="2.5" fill="none" />
+              </svg>
+            </div>
+            <div className="flex justify-between text-[11px] text-surface-400 mt-2 px-1 font-mono">
+              <span>00:00</span>
+              <span>06:00 (Sunrise)</span>
+              <span className="text-amber-600 font-bold">12:00 (Solar Peak 11.5 kW)</span>
+              <span>18:00 (Sunset)</span>
+              <span>23:00</span>
+            </div>
+          </div>
+
+          {/* 6. Load Grid (Feeders) */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100 mb-3">Load Grid</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {REAL_METERS.map((r) => (
+                <div key={r.id} className="rounded-lg border border-surface-200 dark:border-surface-800 p-3 bg-surface-50 dark:bg-surface-950">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-bold text-surface-800 dark:text-surface-200 truncate">{r.name}</p>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                      r.grade === 'A' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                      r.grade === 'B' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' :
+                      'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+                    }`}>
+                      Grade {r.grade}
+                    </span>
+                  </div>
+                  <p className="text-lg font-black text-surface-900 dark:text-surface-100">{r.watts.toLocaleString()} W</p>
+                  <p className="text-[11px] text-surface-400">PF: <strong className={r.pf < 0.85 ? 'text-rose-600' : 'text-surface-600 dark:text-surface-300'}>{r.pf}</strong> · {r.frequency} Hz</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 7. EV Charging Status Card */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100 mb-1.5 flex items-center gap-1.5">
+              <span>🚗</span> EV Charging Status
+            </h3>
+            <p className="text-xs text-surface-600 dark:text-surface-300">
+              Ready by 6:00 PM — 80% / 100% · Rs 450 so far vs Rs 1,800 petrol equivalent
+            </p>
+          </div>
+
+          {/* 8. Alerts */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100 mb-2">Active Alerts</h3>
+            <div className="space-y-2 text-xs">
+              <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 flex items-center justify-between">
+                <span>⚠️ Spray Booth Power Factor is 0.49 (Critical Low PF — NEPRA fine active)</span>
+                <span className="font-bold">Grade C</span>
               </div>
-              <div className="p-3.5 rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800">
-                <p className="text-[11px] font-bold uppercase text-surface-400">Daily Solar Savings</p>
-                <p className="text-xl font-black text-emerald-600 mt-0.5">{formatRs(PLANT_TOTALS.solarSavingsTodayRs)}</p>
-                <p className="text-[10px] text-surface-400">Net Money Saved Today</p>
+              <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                <span>⚠️ Ground Floor Feeder has 65.8% Current Imbalance (Phase B 16.8A vs Phase C 4.6A)</span>
+                <span className="font-bold">Grade B</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: BILL & TARIFF (Contains Bill & Tariff + Rupee Triggers)            */}
+      {/* ========================================================================= */}
+      {activeTab === 'tariff' && (
+        <div className="space-y-5">
+          {/* Bill Economics Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Utility Tariff</p>
+              <p className="text-lg font-bold text-surface-900 dark:text-surface-100 mt-1">{TARIFF_CONFIG.discoName}</p>
+              <div className="mt-2 text-xs space-y-1 text-surface-500">
+                <p>Peak: <strong className="text-rose-600">Rs {TARIFF_CONFIG.peakRatePerKwh}/kWh</strong></p>
+                <p>Off-Peak: <strong className="text-emerald-600">Rs {TARIFF_CONFIG.offPeakRatePerKwh}/kWh</strong></p>
+              </div>
+            </div>
+
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Units Consumed (This Cycle)</p>
+              <p className="text-2xl font-black text-surface-900 dark:text-surface-100 mt-1">26,450 kWh</p>
+              <p className="text-xs text-surface-400 mt-1">11 days left · Projected: {formatRs(PLANT_TOTALS.monthProjectedRs)}</p>
+            </div>
+
+            <div className="card p-4 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/20">
+              <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">NEPRA Low-PF Penalty Surcharge</p>
+              <p className="text-2xl font-black text-rose-600 mt-1">{formatRs(PLANT_TOTALS.nepraLowPfPenaltyRs)}</p>
+              <p className="text-xs text-rose-600/80 mt-1">Due to Spray Booth (0.49 PF). Avoidable via 85 kVAR Capacitor Bank.</p>
+            </div>
+          </div>
+
+          {/* Peak / Off-Peak TOU Hours Schedule */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100 mb-2">Time-of-Use (TOU) Tariff Windows</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 rounded-lg bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800">
+                <p className="font-bold text-rose-600">Peak Hours: 17:00 - 21:00 (5:00 PM - 9:00 PM)</p>
+                <p className="text-surface-500 mt-1">Highest electricity rate (Rs 58.5/kWh). Avoid running heavy batch machinery.</p>
+              </div>
+              <div className="p-3 rounded-lg bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800">
+                <p className="font-bold text-emerald-600">Solar Optimization Hours: 10:30 AM - 3:30 PM</p>
+                <p className="text-surface-500 mt-1">Free rooftop solar electricity (Rs 0/kWh). Best window for Spray Booth batches.</p>
               </div>
             </div>
           </div>
 
-          {/* Dials & Strategic Gauges */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800">
-              <p className="text-[11px] font-bold text-surface-400 uppercase tracking-widest">Today's Spend</p>
-              <p className="text-2xl font-black text-surface-900 dark:text-surface-100 mt-1">{formatRs(PLANT_TOTALS.todaySpendRs)}</p>
-              <p className="text-xs text-surface-400 mt-1">Projection: {formatRs(PLANT_TOTALS.monthProjectedRs)}</p>
+          {/* Rupee Triggers Module (From Original Tab 4) */}
+          <div className="card p-5 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100">
+                Rupee Triggers (Financial Cost Automation)
+              </h3>
+              <p className="text-xs text-surface-400">
+                Default automation unit = rupees, not amps. Sentence builder with 15-minute anti-spam cooldown.
+              </p>
             </div>
-            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800">
-              <p className="text-[11px] font-bold text-surface-400 uppercase tracking-widest">Peak Demand (MDI)</p>
-              <p className="text-2xl font-black text-surface-900 dark:text-surface-100 mt-1">{PLANT_TOTALS.mdiKw} kW</p>
-              <p className="text-xs text-emerald-600 mt-1">Under 150 kW Sanctioned Limit</p>
-            </div>
-            <div className="card p-4 rounded-xl border border-rose-500/20 bg-rose-500/5">
-              <p className="text-[11px] font-bold text-rose-600 uppercase tracking-widest">Plant Average PF</p>
-              <p className="text-2xl font-black text-rose-600 mt-1">{PLANT_TOTALS.averagePf}</p>
-              <p className="text-xs text-rose-600 font-medium mt-1">Incurs NEPRA Low-PF Penalty</p>
-            </div>
-            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800">
-              <p className="text-[11px] font-bold text-surface-400 uppercase tracking-widest">Active Equipment</p>
-              <p className="text-2xl font-black text-surface-900 dark:text-surface-100 mt-1">3 / 3 Nodes</p>
-              <p className="text-xs text-surface-400 mt-1">Solar AFL, Spray Booth, Ground</p>
+
+            {/* Sentence Builder Form */}
+            <form onSubmit={handleAddTrigger} className="flex flex-wrap items-end gap-3 p-4 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800">
+              <div className="w-56">
+                <label className="block text-[11px] font-bold text-surface-400 uppercase mb-1">WHEN</label>
+                <select
+                  value={whenDevice}
+                  onChange={(e) => setWhenDevice(e.target.value)}
+                  className="w-full p-2 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-800 dark:text-surface-100"
+                >
+                  <option>Spray Booth Daily Spend</option>
+                  <option>Ground Floor Daily Spend</option>
+                  <option>Plant Total Spend</option>
+                  <option>Spray Booth Power Factor</option>
+                </select>
+              </div>
+
+              <div className="w-28">
+                <label className="block text-[11px] font-bold text-surface-400 uppercase mb-1">Is</label>
+                <select
+                  value={comparator}
+                  onChange={(e) => setComparator(e.target.value)}
+                  className="w-full p-2 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-800 dark:text-surface-100"
+                >
+                  <option>&gt; (Greater than)</option>
+                  <option>&lt; (Less than)</option>
+                </select>
+              </div>
+
+              <div className="w-32">
+                <label className="block text-[11px] font-bold text-surface-400 uppercase mb-1">Rs</label>
+                <input
+                  type="text"
+                  value={thresholdRs}
+                  onChange={(e) => setThresholdRs(e.target.value.replace(/[^\d]/g, ''))}
+                  className="w-full p-2 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-800 dark:text-surface-100"
+                />
+              </div>
+
+              <div className="w-48">
+                <label className="block text-[11px] font-bold text-surface-400 uppercase mb-1">THEN</label>
+                <select
+                  value={actionThen}
+                  onChange={(e) => setActionThen(e.target.value)}
+                  className="w-full p-2 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-800 dark:text-surface-100"
+                >
+                  <option>WhatsApp & Email Alert</option>
+                  <option>In-App Maintenance Alert</option>
+                  <option>SMS Notification</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-all"
+              >
+                + Add Trigger
+              </button>
+            </form>
+
+            {/* Configured Triggers List */}
+            <div className="space-y-2.5">
+              {triggers.map((tr) => (
+                <div key={tr.id} className="p-3.5 rounded-lg border border-surface-200 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-surface-900 dark:text-surface-100">{tr.name}</p>
+                    <p className="text-[11px] text-surface-400 mt-0.5">
+                      Action: {tr.channel} · Cooldown: {tr.cooldownMinutes} min · {tr.lastTriggered}
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 w-fit">
+                    Active
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Machine Grid & Power Contribution */}
-          <div className="card p-5 rounded-2xl border border-surface-200 dark:border-surface-800">
-            <h3 className="text-sm font-bold text-surface-900 dark:text-surface-100 mb-4">Live Feeder Roster</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* ========================================================================= */}
+      {/* TAB 3: LOAD HEALTH (Contains Load Health + Auto Schedule & EV)            */}
+      {/* ========================================================================= */}
+      {activeTab === 'health' && (
+        <div className="space-y-5">
+          {/* Equipment Health Leaderboard */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100 mb-1">Per-Load Health Report</h3>
+            <p className="text-xs text-surface-400 mb-3">Diagnostic grades based on IEEE Power Factor and NEMA Phase Imbalance</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {REAL_METERS.map((m) => (
-                <div key={m.id} className="p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900/60">
-                  <div className="flex items-center justify-between mb-2">
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedLoad(m)}
+                  className={`text-left rounded-xl border p-4 transition-all ${
+                    selectedLoad?.id === m.id
+                      ? 'border-primary-500 bg-primary-50/30 dark:bg-primary-950/20'
+                      : 'border-surface-200 dark:border-surface-800 hover:bg-surface-50 dark:hover:bg-surface-950'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
                     <span className="font-bold text-sm text-surface-900 dark:text-surface-100">{m.name}</span>
                     <span className={`px-2 py-0.5 rounded text-[11px] font-black ${
-                      m.grade === 'A' ? 'bg-emerald-500/20 text-emerald-600' :
-                      m.grade === 'B' ? 'bg-amber-500/20 text-amber-600' : 'bg-rose-500/20 text-rose-600'
+                      m.grade === 'A' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                      m.grade === 'B' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' :
+                      'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
                     }`}>
                       Grade {m.grade}
                     </span>
                   </div>
-                  <div className="text-xs space-y-1.5 text-surface-600 dark:text-surface-300">
-                    <p className="text-lg font-black text-surface-900 dark:text-surface-100">{m.activePowerKw} kW</p>
-                    <p>Power Factor: <strong className={m.pf < 0.85 ? 'text-rose-600' : 'text-emerald-600'}>{m.pf}</strong></p>
-                    <p>3-Phase Amps: {m.current.join('A, ')}A</p>
-                    {m.issue && <p className="text-[11px] text-rose-500 font-semibold pt-1 border-t border-surface-200 dark:border-surface-800">{m.issue}</p>}
-                  </div>
-                </div>
+                  <p className="text-xs text-surface-400">{m.watts.toLocaleString()} W · PF: <strong className={m.pf < 0.85 ? 'text-rose-600' : ''}>{m.pf}</strong></p>
+                  <p className="text-xs text-surface-600 dark:text-surface-300 mt-2 line-clamp-2">
+                    {m.issue || 'Operating normally with high efficiency.'}
+                  </p>
+                </button>
               ))}
             </div>
           </div>
-        </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* WORKSPACE 2: FINANCIAL INTELLIGENCE & TRIGGERS (Bill & Tariff + Triggers)*/}
-      {/* ========================================================================= */}
-      {activeWorkspace === 'financial' && (
-        <div className="space-y-6">
-          {/* Bill Summary Banner */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="card p-5 rounded-2xl border border-surface-200 dark:border-surface-800">
-              <p className="text-xs font-bold text-surface-400 uppercase">Utility Tariff</p>
-              <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-1">{TARIFF_CONFIG.discoName}</p>
-              <div className="mt-3 text-xs space-y-1 text-surface-500">
-                <p>Peak Rate (17:00-21:00): <strong className="text-rose-600">Rs {TARIFF_CONFIG.peakRatePerKwh}/kWh</strong></p>
-                <p>Off-Peak Rate: <strong className="text-emerald-600">Rs {TARIFF_CONFIG.offPeakRatePerKwh}/kWh</strong></p>
+          {/* Selected Machine Detail Card */}
+          {selectedLoad && (
+            <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-base text-surface-900 dark:text-surface-100">{selectedLoad.name} · Diagnostic Detail</h4>
+                  <p className="text-xs text-surface-400">Technical telemetry values logged from meter</p>
+                </div>
+                <span className={`px-2.5 py-1 rounded text-xs font-black ${
+                  selectedLoad.grade === 'A' ? 'bg-emerald-100 text-emerald-800' :
+                  selectedLoad.grade === 'B' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  Grade {selectedLoad.grade}
+                </span>
               </div>
-            </div>
-            <div className="card p-5 rounded-2xl border border-surface-200 dark:border-surface-800">
-              <p className="text-xs font-bold text-surface-400 uppercase">Units Consumed (This Cycle)</p>
-              <p className="text-2xl font-black text-surface-900 dark:text-surface-100 mt-1">26,450 kWh</p>
-              <p className="text-xs text-surface-400 mt-1">11 days left · Projected: {formatRs(PLANT_TOTALS.monthProjectedRs)}</p>
-            </div>
-            <div className="card p-5 rounded-2xl border border-rose-500/20 bg-rose-500/5">
-              <p className="text-xs font-bold text-rose-600 uppercase">NEPRA Low-PF Penalty Surcharge</p>
-              <p className="text-2xl font-black text-rose-600 mt-1">{formatRs(PLANT_TOTALS.nepraLowPfPenaltyRs)}</p>
-              <p className="text-xs text-rose-600 mt-1">Spray Booth PF (0.49). 100% recoverable with Capacitor Bank.</p>
-            </div>
-          </div>
 
-          {/* Rupee Triggers Manager */}
-          <div className="card p-5 rounded-2xl border border-surface-200 dark:border-surface-800">
-            <div className="flex items-center justify-between mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-2.5 rounded-lg bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800">
+                  <p className="text-surface-400">Active Power</p>
+                  <p className="text-base font-bold text-surface-900 dark:text-surface-100 mt-0.5">{selectedLoad.activePowerKw} kW</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800">
+                  <p className="text-surface-400">Power Factor</p>
+                  <p className={`text-base font-bold mt-0.5 ${selectedLoad.pf < 0.85 ? 'text-rose-600' : 'text-emerald-600'}`}>{selectedLoad.pf}</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800">
+                  <p className="text-surface-400">3-Phase Amps</p>
+                  <p className="text-xs font-bold text-surface-900 dark:text-surface-100 mt-0.5">{selectedLoad.current.join('A, ')}A</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800">
+                  <p className="text-surface-400">Frequency</p>
+                  <p className="text-base font-bold text-surface-900 dark:text-surface-100 mt-0.5">{selectedLoad.frequency} Hz</p>
+                </div>
+              </div>
+
+              {selectedLoad.recommendation && (
+                <div className="p-3 rounded-lg bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 text-xs text-primary-800 dark:text-primary-200">
+                  <p className="font-bold">Corrective Recommendation:</p>
+                  <p className="mt-0.5">{selectedLoad.recommendation}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Autonomous Schedule & EV (From Original Tab 5) */}
+          <div className="card p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 space-y-3">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-surface-900 dark:text-surface-100">Active Rupee Triggers & Financial Safeguards</h3>
-                <p className="text-xs text-surface-500">Rules evaluated every minute with 15-minute anti-spam throttle</p>
+                <h3 className="text-sm font-bold text-surface-800 dark:text-surface-100">
+                  Autonomous Schedule — "ELSA Will Handle Everything"
+                </h3>
+                <p className="text-xs text-surface-400">
+                  Reads 30 days of usage + tariff windows + solar profile and generates the full schedule itself.
+                </p>
               </div>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-bold">
-                <Plus size={14} /> Add Trigger
+              <button
+                onClick={() => setAutoScheduleActive(!autoScheduleActive)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  autoScheduleActive
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-surface-200 dark:bg-surface-800 text-surface-700 dark:text-surface-300'
+                }`}
+              >
+                {autoScheduleActive ? 'Auto Mode: ON' : 'Enable Auto Mode'}
               </button>
             </div>
-            <div className="space-y-3">
-              {triggers.map((tr) => (
-                <div key={tr.id} className="p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-900/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+
+            {autoScheduleActive && (
+              <div className="space-y-2 pt-2 border-t border-surface-100 dark:border-surface-800">
+                <div className="flex items-center justify-between p-3 rounded-lg border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950 text-xs">
                   <div>
-                    <h4 className="font-bold text-sm text-surface-900 dark:text-surface-100">{tr.name}</h4>
-                    <p className="text-xs text-surface-500 mt-0.5">
-                      Target: <strong>{tr.targetDevice}</strong> · Criteria: <strong>{tr.metric} {tr.condition} {tr.threshold}</strong> · Dispatch: <strong>{tr.channel}</strong>
-                    </p>
-                    <p className="text-[11px] text-amber-600 mt-1">Cooldown: {tr.cooldownMinutes}m · Last Fired: {tr.lastTriggered}</p>
+                    <span className="font-bold text-primary-600">11:30 AM — Spray Booth Batch</span>
+                    <p className="text-surface-500">Run heavy cycle during peak solar window (10:30 AM - 3:30 PM)</p>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 w-fit">
-                    Active & Monitored
-                  </span>
+                  <span className="font-bold text-emerald-600">Saves ~Rs 4,500</span>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center justify-between p-3 rounded-lg border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950 text-xs">
+                  <div>
+                    <span className="font-bold text-rose-600">5:00 PM — Peak Curtailment</span>
+                    <p className="text-surface-500">Shut non-essential ACs before evening peak tariff (Rs 58.5/kWh)</p>
+                  </div>
+                  <span className="font-bold text-emerald-600">Avoids Rs 3,200 fine</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* WORKSPACE 3: LOAD HEALTH & OPTIMIZATION (Load Health + Auto Schedule)     */}
+      {/* TAB 4: HEY ELSA (Conversational AI Assistant)                             */}
       {/* ========================================================================= */}
-      {activeWorkspace === 'health' && (
-        <div className="space-y-6">
-          {/* Equipment Diagnostics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {REAL_METERS.map((m) => (
-              <div key={m.id} className="card p-5 rounded-2xl border border-surface-200 dark:border-surface-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-base text-surface-900 dark:text-surface-100">{m.name}</h4>
-                  <span className={`px-2.5 py-1 rounded text-xs font-black ${
-                    m.grade === 'A' ? 'bg-emerald-500/20 text-emerald-600' :
-                    m.grade === 'B' ? 'bg-amber-500/20 text-amber-600' : 'bg-rose-500/20 text-rose-600'
-                  }`}>
-                    Grade {m.grade}
-                  </span>
+      {activeTab === 'assistant' && (
+        <div className="card p-5 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 max-w-3xl mx-auto space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-surface-200 dark:border-surface-800">
+            <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center font-bold text-lg">
+              E
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-surface-900 dark:text-surface-100">Hey ELSA · AI Energy Engineer</h3>
+              <p className="text-xs text-surface-400">Connected to Ambition live telemetry (Approach 2 Prompt Injection)</p>
+            </div>
+          </div>
+
+          {/* Quick Questions Chips */}
+          <div className="flex flex-wrap gap-1.5 pb-2">
+            {[
+              'Spray Booth status?',
+              'Solar kitni bijli bana raha hai?',
+              "Today's bill estimate?",
+              'Ground Floor unbalance?'
+            ].map((chip) => (
+              <button
+                key={chip}
+                onClick={() => {
+                  setChatInput(chip)
+                }}
+                className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-surface-700 transition-all"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          {/* Chat Messages Stream */}
+          <div className="space-y-3 h-80 overflow-y-auto p-2 border border-surface-100 dark:border-surface-800 rounded-xl bg-surface-50/50 dark:bg-surface-950">
+            {chatMessages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+              >
+                <div
+                  className={`max-w-[85%] p-3.5 rounded-2xl text-xs leading-relaxed ${
+                    msg.sender === 'user'
+                      ? 'bg-primary-600 text-white rounded-br-none'
+                      : 'bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-100 border border-surface-200 dark:border-surface-700 rounded-bl-none shadow-sm'
+                  }`}
+                >
+                  {msg.text}
                 </div>
-                <div className="text-xs space-y-1.5 text-surface-600 dark:text-surface-300">
-                  <p>Active Draw: <strong>{m.activePowerKw} kW</strong></p>
-                  <p>Power Factor: <strong className={m.pf < 0.85 ? 'text-rose-600' : 'text-emerald-600'}>{m.pf}</strong></p>
-                  <p>3-Phase Currents: <strong>{m.current.join('A, ')}A</strong></p>
-                  {m.id === 'ground-floor' && (
-                    <p className="text-rose-600 font-bold">NEMA Current Imbalance: 65.8% (Severe)</p>
-                  )}
-                </div>
-                {m.issue && (
-                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 space-y-1">
-                    <p className="font-bold">{m.issue}</p>
-                    <p className="text-surface-600 dark:text-surface-300">Recommendation: {m.recommendation}</p>
-                  </div>
-                )}
+                <span className="text-[10px] text-surface-400 mt-1 px-1">{msg.time}</span>
               </div>
             ))}
           </div>
 
-          {/* Solar Peak Load Shifting Advisor */}
-          <div className="card p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
-            <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-300 mb-2">
-              ⚡ Solar Peak Load Shifting Advisor (Auto Schedule)
-            </h3>
-            <p className="text-xs text-emerald-600/90 mb-3">
-              Matching heavy industrial equipment to rooftop solar peak hours (10:30 AM - 3:30 PM)
-            </p>
-            <div className="p-4 rounded-xl bg-white dark:bg-surface-800 border border-emerald-500/20 text-xs space-y-2">
-              <p className="font-bold text-surface-900 dark:text-surface-100">
-                Action Recommendation: Shift Spray Booth Batch Runs to 11:30 AM
-              </p>
-              <p className="text-surface-600 dark:text-surface-300">
-                Spray Booth requires 78.8 kW. Operating this load during mid-day solar peak allows direct displacement of expensive grid electricity, saving an estimated <strong>Rs 4,500 per production batch</strong>.
-              </p>
-              <div className="flex items-center gap-2 pt-2 border-t border-surface-200 dark:border-surface-700 text-[11px] text-surface-400">
-                <Clock size={12} />
-                <span>Peak Utility Surcharge starts at 5:00 PM (Rs 58.5/kWh). Avoid operating non-essential loads.</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* PERSISTENT CO-PILOT SLIDE-OUT DRAWER (Hey ELSA)                           */}
-      {/* ========================================================================= */}
-      {isCopilotOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-surface-900 h-full shadow-2xl flex flex-col border-l border-surface-200 dark:border-surface-800">
-            {/* Drawer Header */}
-            <div className="p-4 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between bg-surface-50 dark:bg-surface-800/50">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs">
-                  ✨
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-surface-900 dark:text-surface-100">Hey ELSA Co-Pilot</h3>
-                  <p className="text-[10px] text-surface-400">Live Ambition Telemetry Context</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsCopilotOpen(false)}
-                className="p-1.5 rounded-lg text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Quick Questions Chips */}
-            <div className="p-3 border-b border-surface-200 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-900/50 flex flex-wrap gap-1.5">
-              {[
-                'Spray Booth status?',
-                'Solar kitni bijli bana raha hai?',
-                "Today's bill estimate?",
-                'Ground Floor unbalance?'
-              ].map((chip) => (
-                <button
-                  key={chip}
-                  onClick={() => handleQuickPrompt(chip)}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 hover:bg-primary-50 hover:text-primary-600 transition-all"
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chatMessages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed ${
-                      msg.sender === 'user'
-                        ? 'bg-primary-600 text-white rounded-br-none'
-                        : 'bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-100 rounded-bl-none'
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
-                  <span className="text-[10px] text-surface-400 mt-1 px-1">{msg.time}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Chat Input */}
-            <form onSubmit={handleSendChat} className="p-3 border-t border-surface-200 dark:border-surface-800 flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask ELSA in English or Roman Urdu..."
-                className="flex-1 px-3.5 py-2.5 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-              <button
-                type="submit"
-                className="p-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white transition-all"
-              >
-                <Send size={15} />
-              </button>
-            </form>
-          </div>
+          {/* Input Form */}
+          <form onSubmit={handleSendChat} className="flex gap-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Poochhein: 'Spray Booth status?', 'Solar generation?', 'Today bill'..."
+              className="flex-1 px-3.5 py-2.5 rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-all"
+            >
+              Send
+            </button>
+          </form>
         </div>
       )}
     </div>
