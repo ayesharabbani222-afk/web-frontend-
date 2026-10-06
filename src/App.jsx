@@ -118,6 +118,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* Public preview routes for instant viewing without login */}
+      <Route path="/elsa-preview" element={<ElsaAiProPage />} />
+      <Route path="/elsa-classic-preview" element={<ElsaAiClassicPage />} />
       <Route path="/" element={<Navigate to={user ? `/${user.role}` : '/login'} replace />} />
 
       {/* ── Super Admin ── */}
